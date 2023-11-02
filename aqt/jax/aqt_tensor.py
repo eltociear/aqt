@@ -321,13 +321,18 @@ class TensorQuantizer(nn.Module):
     if isinstance(config.quant_config, aqt_config.FloatConfig):
       return False
 
-    if not config.freeze_scale_at_begin:
-      return True
-
     # The first time a config is active, even if we freeze scale, we should
     # update the scale.
     was_previously_inactive = not is_config_active(config,
                                                    self._last_update.value)
+
+    if not config.freeze_scale_at_begin:
+      should_update = True
+      if config.freeze_scale_at_event is not None:
+        should_update = was_previously_inactive | (
+            bool(event_count < config.freeze_scale_at_event)
+        )
+      return should_update
 
     # We rely on jnp.int32.min being an illegal event count value, so that
     # even if is_config_active(config, jnp.int32.min), we still update scale.
